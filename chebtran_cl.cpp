@@ -10,7 +10,8 @@ ChebyshevTransform::ChebyshevTransform(int n)
             vex::Filter::DoublePrecision &&
             vex::Filter::Count(1)
          ),
-      fft(ctx, M), ifft(ctx, M, vex::fft::inverse)
+      fft(ctx, M), ifft(ctx, M, vex::fft::inverse),
+      X2(ctx, M)
 { }
 
 
@@ -30,33 +31,28 @@ std::string ChebyshevTransform::get_device_name() {
 
 // Concatenate input vector with its reversed self,
 // copy the result to compute device
-vex::vector<double> ChebyshevTransform::catrev(const dvec &a) {
-    vex::vector<double> A2(ctx, M);
-
+void ChebyshevTransform::catrev(const dvec &a, vex::vector<double> &A2) {
     // First half of A2 holds a:
     vex::copy(a.begin(), a.end(), A2.begin());
 
     // Second half of A2 holds reversed copy of a (with endpoints removed):
     vex::slicer<1> slice(vex::extents[M]);
     slice[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
-
-    return A2;
 }
 
 // Evaluate real-valued Chebyshev expansions on the grid
 dvec ChebyshevTransform::coeff_to_nodal(const dvec &a) {
 
-    vex::vector<double> A2 = catrev(a);
-    vex::vector<double> B2(ctx, M);
+    catrev(a, X2);
 
-    A2[0]   = 2 * a[0];
-    A2[N-1] = 2 * a[N-1];
+    X2[0]   = 2 * a[0];
+    X2[N-1] = 2 * a[N-1];
 
-    B2 = fft(A2) / 2;
+    X2 = fft(X2) / 2;
 
     dvec b(N);
 
-    vex::copy(B2.begin(),B2.begin()+N,b.begin());
+    vex::copy(X2.begin(), X2.begin() + N, b.begin());
 
     return b;
 }
@@ -65,14 +61,13 @@ dvec ChebyshevTransform::coeff_to_nodal(const dvec &a) {
 // Compute Chebyshev expansion coefficient from grid values
 dvec ChebyshevTransform::nodal_to_coeff(const dvec &b){
 
-    vex::vector<double> B2 = catrev(b);
-    vex::vector<double> A2(ctx,M);
+    catrev(b, X2);
 
-    A2 = ifft(B2) * 2;
+    X2 = ifft(X2) * 2;
 
     dvec a(N);
 
-    vex::copy(A2.begin(),A2.begin()+N,a.begin());
+    vex::copy(X2.begin(), X2.begin() + N, a.begin());
 
     a[0]   *= 0.5;
     a[N-1] *= 0.5;

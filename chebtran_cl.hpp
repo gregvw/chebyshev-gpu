@@ -26,7 +26,8 @@ class ChebyshevTransform {
         vex::Context ctx;
         vex::FFT<double, double> fft;
         vex::FFT<double, double> ifft;
+        vex::vector<double> X2;
 
-        vex::vector<double> catrev(const dvec &a);
+        void catrev(const dvec &a, vex::vector<double> &X2);
 };
 
