@@ -1,4 +1,4 @@
-// g++ -std=c++11 -L/opt/local/lib chebtran_cl.cpp -lOpenCL -lboost_system
+// g++ -std=c++11 -DSTANDALONE_TEST -L/opt/local/lib chebtran_cl.cpp -lOpenCL -lboost_system
 //#include <cstdlib>
 #include "chebtran_cl.hpp"
 
@@ -102,35 +102,25 @@ dvec ChebyshevTransform::nodal_to_coeff(const dvec &b){
 
 
 
-/*
+#ifdef STANDALONE_TEST
 int main(int argc, char* argv[]) {
 
-    int N = atoi(argv[1]);
-    int k = atoi(argv[2]);
-    
-    std::string devName;
-   
-
-    dvec a(N,0);
-    dvec b(N);
-    dvec c(N);
-    
-    a[k] = 1;
+    int N = argc > 1 ? atoi(argv[1]) : 16;
+    int k = argc > 2 ? atoi(argv[2]) : 0;
 
     ChebyshevTransform chebtran(N);
+    std::cout << chebtran.get_device_name() << std::endl;
 
-    chebtran.get_device_name(devName);
-      
-    b = chebtran.coeff_to_nodal(a);    
-    c = chebtran.nodal_to_coeff(b);    
+    dvec a(N,0);
+    a[k] = 1;
 
-    std::cout << devName << std::endl;
-
+    auto b = chebtran.coeff_to_nodal(a);
+    auto c = chebtran.nodal_to_coeff(b);
 
     for(int i=0;i<c.size();++i) {
         std::cout << c[i] << std::endl; 
     }
 
 }
-*/
+#endif
 
