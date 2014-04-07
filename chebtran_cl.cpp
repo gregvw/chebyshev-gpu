@@ -83,17 +83,23 @@ int main(int argc, char* argv[]) {
     int N = argc > 1 ? atoi(argv[1]) : 16;
     int k = argc > 2 ? atoi(argv[2]) : 0;
 
-    ChebyshevTransform chebtran(N);
-    std::cout << chebtran.get_device_name() << std::endl;
+    try {
+        ChebyshevTransform chebtran(N);
+        std::cout << chebtran.get_device_name() << std::endl;
 
-    dvec a(N,0);
-    a[k] = 1;
+        dvec a(N,0);
+        a[k] = 1;
 
-    auto b = chebtran.coeff_to_nodal(a);
-    auto c = chebtran.nodal_to_coeff(b);
+        auto b = chebtran.coeff_to_nodal(a);
+        auto c = chebtran.nodal_to_coeff(b);
 
-    for(int i=0;i<c.size();++i) {
-        std::cout << c[i] << std::endl;
+        for(int i=0;i<c.size();++i) {
+            std::cout << c[i] << std::endl;
+        }
+    } catch (const cl::Error &e) {
+        std::cerr << "OpenCL error: " << e << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
     }
 
 }
