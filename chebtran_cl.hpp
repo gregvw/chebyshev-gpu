@@ -6,8 +6,7 @@
 #define VEXCL_THROW_ON_EMPTY_CONTEXT
 #include <vexcl/vexcl.hpp>
 
-typedef std::vector<double>    dvec;
-typedef std::vector<cl_double> clvec;
+typedef std::vector<double> dvec;
 
 class ChebyshevTransform {
 
@@ -25,8 +24,8 @@ class ChebyshevTransform {
         int M;
 
         vex::Context ctx;
-        vex::FFT<double, cl_double> fft;
-        vex::FFT<cl_double, double> ifft;
+        vex::FFT<double, double> fft;
+        vex::FFT<double, double> ifft;
 
         vex::vector<double> catrev(const dvec &a);
 };
