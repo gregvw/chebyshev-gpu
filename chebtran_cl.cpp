@@ -28,28 +28,31 @@ std::string ChebyshevTransform::get_device_name() {
     return devName;
 }
 
+// Concatenate input vector with its reversed self,
+// copy the result to compute device
+vex::vector<double> ChebyshevTransform::catrev(const dvec &a) {
+    vex::vector<double> A2(ctx, M);
+
+    // First half of A2 holds a:
+    vex::copy(a.begin(), a.end(), A2.begin());
+
+    // Second half of A2 holds reversed copy of a (with endpoints removed):
+    vex::slicer<1> slice(vex::extents[M]);
+    slice[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
+
+    return A2;
+}
 
 // Evaluate real-valued Chebyshev expansions on the grid
 dvec ChebyshevTransform::coeff_to_nodal(const dvec &a) {
 
-    // Create a reversed copy of the input coefficients
-    dvec arev(a);
-    std::reverse(arev.begin(),arev.end());
+    vex::vector<double> A2 = catrev(a);
+    vex::vector<double> B2(ctx, M);
 
-    dvec a2;
-    a2.reserve(M);
+    A2[0]   = 2 * a[0];
+    A2[N-1] = 2 * a[N-1];
 
-    a2.insert(a2.begin(),a.begin(),a.end());
-    a2.insert(a2.begin()+N,arev.begin()+1,arev.end()-1);
-
-    a2[0] *= 2;
-    a2[N-1] *= 2;
-
-    vex::vector<double> A2(ctx,a2);
-    vex::vector<cl_double> B2(ctx,M);
-
-    B2 = fft(A2);
-    B2 /= 2;
+    B2 = fft(A2) / 2;
 
     dvec b(N);
 
@@ -62,27 +65,16 @@ dvec ChebyshevTransform::coeff_to_nodal(const dvec &a) {
 // Compute Chebyshev expansion coefficient from grid values
 dvec ChebyshevTransform::nodal_to_coeff(const dvec &b){
 
-    // Create a reversed copy of the input coefficients
-    dvec brev(b);
-    std::reverse(brev.begin(),brev.end());
-
-    dvec b2;
-    b2.reserve(M);
-
-    b2.insert(b2.begin(),b.begin(),b.end());
-    b2.insert(b2.begin()+N,brev.begin()+1,brev.end()-1);
-
-    vex::vector<cl_double> B2(ctx,b2);
+    vex::vector<double> B2 = catrev(b);
     vex::vector<double> A2(ctx,M);
 
-    A2 = ifft(B2);
-    A2 *= 2;
+    A2 = ifft(B2) * 2;
 
     dvec a(N);
 
     vex::copy(A2.begin(),A2.begin()+N,a.begin());
 
-    a[0] *= 0.5;
+    a[0]   *= 0.5;
     a[N-1] *= 0.5;
 
     return a;
