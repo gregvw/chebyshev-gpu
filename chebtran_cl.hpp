@@ -1,16 +1,19 @@
 #include <iostream>
 #include <vector>
-#include <vexcl/vexcl.hpp>
 #include <string>
 
-typedef std::vector<double> dvec;
+// Throw if there are no compute devices.
+#define VEXCL_THROW_ON_EMPTY_CONTEXT
+#include <vexcl/vexcl.hpp>
+
+typedef std::vector<double>    dvec;
 typedef std::vector<cl_double> clvec;
 
 class ChebyshevTransform {
 
-    public: 
+    public:
         ChebyshevTransform(int);
-        std::string get_device_name(); 
+        std::string get_device_name();
 
         dvec coeff_to_nodal(const dvec &a);
 
@@ -21,10 +24,9 @@ class ChebyshevTransform {
         int N;
         int M;
 
-        std::shared_ptr< vex::Context > ctx;
-        std::shared_ptr< vex::FFT<double, cl_double> > fft;
-        std::shared_ptr< vex::FFT<cl_double,double> > ifft;
-   
+        vex::Context ctx;
+        vex::FFT<double, cl_double> fft;
+        vex::FFT<cl_double, double> ifft;
 
 };
 
