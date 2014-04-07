@@ -1,38 +1,27 @@
-// g++ -std=c++11 -L/opt/local/lib chebtran_cl.cpp -lOpenCL -lboost_system
+// g++ -std=c++11 -DSTANDALONE_TEST -L/opt/local/lib chebtran_cl.cpp -lOpenCL -lboost_system
 //#include <cstdlib>
 #include "chebtran_cl.hpp"
 
 
-ChebyshevTransform::ChebyshevTransform(int n) {
-    try {
-        // Init VexCL context: grab one GPU with double precision.
-        ctx.reset(new vex::Context(
-                      vex::Filter::Type(CL_DEVICE_TYPE_GPU) &&
-                      vex::Filter::DoublePrecision &&
-                      vex::Filter::Count(1)));
-
-        if ( !(*ctx) ) throw std::runtime_error("GPUs with double precision not found.");
-
-        N = n;
-        M = 2*N-2;
-        fft.reset( new vex::FFT<double,cl_double>(*ctx,M));
-        ifft.reset( new vex::FFT<cl_double,double>(*ctx,M,vex::fft::inverse));
-
-
-    } catch(const cl::Error &err) {
-        std::cout << "OpenCL error: " << err << std::endl;
-    }
-}
+ChebyshevTransform::ChebyshevTransform(int n)
+    : N(n), M(2 * N - 2),
+      ctx(
+            vex::Filter::Type(CL_DEVICE_TYPE_GPU) &&
+            vex::Filter::DoublePrecision &&
+            vex::Filter::Count(1)
+         ),
+      fft(ctx, M), ifft(ctx, M, vex::fft::inverse),
+      X2(ctx, M)
+{ }
 
 
 
 std::string ChebyshevTransform::get_device_name() {
 
-  
     std::ostringstream os;
- 
+
     // Write device name to output string stream
-    os << ctx->queue();
+    os << ctx.queue(0);
 
     // extract string
     std::string devName = os.str();
@@ -40,61 +29,47 @@ std::string ChebyshevTransform::get_device_name() {
     return devName;
 }
 
+// Concatenate input vector with its reversed self,
+// copy the result to compute device
+void ChebyshevTransform::catrev(const dvec &a, vex::vector<double> &A2) {
+    // First half of A2 holds a:
+    vex::copy(a.begin(), a.end(), A2.begin());
 
-// Evaluate real-valued Chebyshev expansions on the grid 
+    // Second half of A2 holds reversed copy of a (with endpoints removed):
+    vex::slicer<1> slice(vex::extents[M]);
+    slice[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
+}
+
+// Evaluate real-valued Chebyshev expansions on the grid
 dvec ChebyshevTransform::coeff_to_nodal(const dvec &a) {
 
-    // Create a reversed copy of the input coefficients
-    dvec arev(a);
-    std::reverse(arev.begin(),arev.end());
+    catrev(a, X2);
 
-    dvec a2;
-    a2.reserve(M);
-    
-    a2.insert(a2.begin(),a.begin(),a.end());
-    a2.insert(a2.begin()+N,arev.begin()+1,arev.end()-1);    
+    X2[0]   = 2 * a[0];
+    X2[N-1] = 2 * a[N-1];
 
-    a2[0] *= 2;
-    a2[N-1] *= 2;
-
-    vex::vector<double> A2(*ctx,a2);
-    vex::vector<cl_double> B2(*ctx,M);
-  
-    B2 = (*fft)(A2);
-    B2 /= 2;
+    X2 = fft(X2) / 2;
 
     dvec b(N);
 
-    vex::copy(B2.begin(),B2.begin()+N,b.begin());
+    vex::copy(X2.begin(), X2.begin() + N, b.begin());
 
-    return b; 
+    return b;
 }
 
 
 // Compute Chebyshev expansion coefficient from grid values
 dvec ChebyshevTransform::nodal_to_coeff(const dvec &b){
-    
-    // Create a reversed copy of the input coefficients
-    dvec brev(b);
-    std::reverse(brev.begin(),brev.end());
 
-    dvec b2;
-    b2.reserve(M);
+    catrev(b, X2);
 
-    b2.insert(b2.begin(),b.begin(),b.end());
-    b2.insert(b2.begin()+N,brev.begin()+1,brev.end()-1);
+    X2 = ifft(X2) * 2;
 
-    vex::vector<cl_double> B2(*ctx,b2);
-    vex::vector<double> A2(*ctx,M);
+    dvec a(N);
 
-    A2 = (*ifft)(B2);
-    A2 *= 2;
+    vex::copy(X2.begin(), X2.begin() + N, a.begin());
 
-    dvec a(N);  
-
-    vex::copy(A2.begin(),A2.begin()+N,a.begin());
-
-    a[0] *= 0.5;
+    a[0]   *= 0.5;
     a[N-1] *= 0.5;
 
     return a;
@@ -102,35 +77,31 @@ dvec ChebyshevTransform::nodal_to_coeff(const dvec &b){
 
 
 
-/*
+#ifdef STANDALONE_TEST
 int main(int argc, char* argv[]) {
 
-    int N = atoi(argv[1]);
-    int k = atoi(argv[2]);
-    
-    std::string devName;
-   
+    int N = argc > 1 ? atoi(argv[1]) : 16;
+    int k = argc > 2 ? atoi(argv[2]) : 0;
 
-    dvec a(N,0);
-    dvec b(N);
-    dvec c(N);
-    
-    a[k] = 1;
+    try {
+        ChebyshevTransform chebtran(N);
+        std::cout << chebtran.get_device_name() << std::endl;
 
-    ChebyshevTransform chebtran(N);
+        dvec a(N,0);
+        a[k] = 1;
 
-    chebtran.get_device_name(devName);
-      
-    b = chebtran.coeff_to_nodal(a);    
-    c = chebtran.nodal_to_coeff(b);    
+        auto b = chebtran.coeff_to_nodal(a);
+        auto c = chebtran.nodal_to_coeff(b);
 
-    std::cout << devName << std::endl;
-
-
-    for(int i=0;i<c.size();++i) {
-        std::cout << c[i] << std::endl; 
+        for(int i=0;i<c.size();++i) {
+            std::cout << c[i] << std::endl;
+        }
+    } catch (const cl::Error &e) {
+        std::cerr << "OpenCL error: " << e << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
     }
 
 }
-*/
+#endif
 
