@@ -22,40 +22,30 @@ Chebyshev::Chebyshev(int n)
          ),
       fft(ctx, M), ifft(ctx, M, vex::fft::inverse),
       cplx_ifft(ctx, M, vex::fft::inverse),
-      kkrev(ctx, M),
+      sum(ctx),
+      slice(vex::extents[M]),
       X2(ctx, M),
       w0(ctx, N),
       wi(ctx, N-2),
-      wN(ctx, N),
-      sum(ctx)
-{ 
-      slice.reset(new vex::slicer<1>(vex::extents[M]));
+      wN(ctx, N)
+{
+    dev_dvec k2(ctx, N);
 
-      dev_dvec k(N);
-      dev_dvec ki(N-2);
+    auto i = vex::tag<1>(vex::element_index());
 
-      // 0,1,...N-1 
-      k = vex::element_index();
+    k2 = 2 * i * i;
 
-      // 0,1,...,N-1,-(N-1),-(N-2),...,-1
-      (*slice)[vex::range(0,N)](kkrev) = k;
-      (*slice)[vex::range(N, M)](kkrev) = -vex::permutation( N - 2 - vex::element_index() )(kkrev);
+    // 2,8,18,...,2*(N-2)^2,(N-1)^2
+    k2[N - 1] = (N - 1) * (N - 1);
 
-      // 1,2,...,N-2
-      copy_subvector(k,ki,1,N-1);   
+    w0 = coeff_to_nodal(k2);
+    w0 = w0 / (N - 1);
 
-      dev_dvec k2(2*k*k);
- 
-      // 2,8,18,...,2*(N-2)^2,(N-1)^2
-      k2[N-1] = 0.5*k2[N-1]; 
+    w0[0]     = 0.5 * w0[0];
+    w0[N - 1] = 0.5 * w0[N - 1];
 
-      w0 = coeff_to_nodal(k2);
-      w0 = w0/(N-1);
-      w0[0] = 0.5*w0[0];
-      w0[N-1] = 0.5*w0[N-1];
-      wN = -vex::permutation(N-1-vex::element_index())(w0);
-      wi = 1/(vex::sin(pi*ki/(N-1)));
- 
+    wN = -vex::permutation(N - 1 - i)(w0);
+    wi = 1 / ( sin(vex::constants::pi() * (i + 1) / (N - 1)) );
 }
 
 
@@ -76,24 +66,24 @@ std::string Chebyshev::get_device_name() {
 
 
 void Chebyshev::copy_subvector(const dev_dvec &a, dev_dvec &b, int start, int stop) {
-    b = (*slice)[vex::range(start,stop)](a);
+    b = slice[vex::range(start,stop)](a);
 }
- 
+
 
 void Chebyshev::catrev(const dev_dvec &a, dev_dvec &A2) {
 
     // First half of A2 holds a:
-    (*slice)[vex::range(0,N)](A2) = a;
+    slice[vex::range(0,N)](A2) = a;
 
     // Second half of A2 holds reversed copy of a (with endpoints removed):
-    (*slice)[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
+    slice[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
 }
 
 
 
 host_dvec Chebyshev::coeff_to_nodal(const host_dvec &a) {
 
-    dev_dvec A(a);
+    dev_dvec A(ctx, a);
     host_dvec b(N);
     auto B = coeff_to_nodal(A);
     vex::copy(B,b);
@@ -110,11 +100,11 @@ dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
     X2[N-1] = 2 * a[N-1];
 
     X2 = fft(X2) / 2;
-       
-    dev_dvec b(N);
+
+    dev_dvec b(ctx, N);
 
     copy_subvector(X2,b,0,N);
- 
+
     return b;
 }
 
@@ -122,14 +112,14 @@ dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
 
 // Compute Chebyshev expansion coefficient from grid values
 dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
-    
+
     catrev(b, X2);
 
     X2 = ifft(X2) * 2;
 
-    dev_dvec a(N);
+    dev_dvec a(ctx, N);
 
-    copy_subvector(X2,a,0,N); 
+    copy_subvector(X2,a,0,N);
 
     a[0]   = 0.5*a[0];
     a[N-1] = 0.5*a[N-1];
@@ -139,7 +129,7 @@ dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
 
 host_dvec Chebyshev::nodal_to_coeff(const host_dvec &b) {
 
-    dev_dvec B(b);
+    dev_dvec B(ctx, b);
     host_dvec a(N);
     auto A = nodal_to_coeff(B);
     vex::copy(A,a);
@@ -150,24 +140,29 @@ host_dvec Chebyshev::nodal_to_coeff(const host_dvec &b) {
 // Differentiate a function on the grid
 dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
 
-    dev_dvec v(N);
+    dev_dvec v(ctx, N);
 
     catrev(u,X2);
 
-    X2 = fft(X2);
-    X2 = X2*kkrev;
+    // 0,1,...,N-1,-(N-1),-(N-2),...,-1
+    VEX_FUNCTION(double, kkrev, (ptrdiff_t, N)(ptrdiff_t, i),
+            if (i < N) return i;
+            return -2 * N + i + 1;
+            );
+
+    X2 = fft(X2) * kkrev(N, vex::element_index());
     X2[N-1] = 0;
 
     // Extract imaginary part of vector
     VEX_FUNCTION(double, imag, (cl_double2, c),
             return c.y;
-            ); 
+            );
 
-    X2 = imag(cplx_ifft(X2)); 
+    X2 = imag(cplx_ifft(X2));
 
     v[0] = sum(u*w0);
 
-    (*slice)[vex::range(1,N-1)](v) = (*slice)[vex::range(1,N-1)](X2) * wi;
+    slice[vex::range(1,N-1)](v) = slice[vex::range(1,N-1)](X2) * wi;
 
     v[N-1] = sum(wN*u);
 
@@ -176,7 +171,7 @@ dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
 
 host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
 
-    dev_dvec U(u);
+    dev_dvec U(ctx, u);
 
     host_dvec v(N);
 
