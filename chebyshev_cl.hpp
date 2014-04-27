@@ -17,13 +17,13 @@ class Chebyshev {
 
         std::string get_device_name();
 
-        dev_dvec coeff_to_nodal(const dev_dvec &a);
+        void coeff_to_nodal(const dev_dvec &a, dev_dvec &b);
         host_dvec coeff_to_nodal(const host_dvec &a);
 
-        dev_dvec nodal_to_coeff(const dev_dvec &b);
+        void nodal_to_coeff(const dev_dvec &b, dev_dvec &a);
         host_dvec nodal_to_coeff(const host_dvec &b);
 
-        dev_dvec nodal_diff(const dev_dvec &u);
+        void nodal_diff(const dev_dvec &u, dev_dvec &v);
         host_dvec nodal_diff(const host_dvec &u);
 
 

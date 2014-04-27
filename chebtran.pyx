@@ -1,5 +1,5 @@
 # distutils: language = c++
-# distutils: sources = chebtran_cl.cpp
+# distutils: sources = chebyshev_cl.cpp
 
 import cython
 import numpy as np
@@ -9,7 +9,7 @@ from libcpp.vector cimport vector
 
 
 
-cdef extern from "chebtran_cl.hpp":
+cdef extern from "chebyshev_cl.hpp":
     cdef cppclass Chebyshev:
         Chebyshev(int)
         
@@ -21,7 +21,7 @@ cdef extern from "chebtran_cl.hpp":
 
 
 
-cdef class ChebTran:
+cdef class ChebyshevCL:
     cdef Chebyshev *thisptr
     
 #    def get_device_name

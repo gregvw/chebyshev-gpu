@@ -1,7 +1,7 @@
 
-// g++ -std=c++11 -DSTANDALONE_TEST -L/opt/local/lib cheb_cl.cpp -lOpenCL -lboost_system
+// g++ -std=c++11 -DSTANDALONE_TEST -L/opt/local/lib chebyshev_cl.cpp -lOpenCL -lboost_system
 //#include <cstdlib>
-#include "chebtran_cl.hpp"
+#include "chebyshev_cl.hpp"
 
 // Print elements of vector to stdout
 template<class T>
@@ -38,7 +38,7 @@ Chebyshev::Chebyshev(int n)
     // 2,8,18,...,2*(N-2)^2,(N-1)^2
     k2[N - 1] = (N - 1) * (N - 1);
 
-    w0 = coeff_to_nodal(k2);
+    coeff_to_nodal(k2,w0);
     w0 = w0 / (N - 1);
 
     w0[0]     = 0.5 * w0[0];
@@ -81,15 +81,16 @@ void Chebyshev::catrev(const dev_dvec &a, dev_dvec &A2) {
 host_dvec Chebyshev::coeff_to_nodal(const host_dvec &a) {
 
     dev_dvec A(ctx, a);
+    dev_dvec B(ctx, N);
     host_dvec b(N);
-    auto B = coeff_to_nodal(A);
+    coeff_to_nodal(A,B);
     vex::copy(B,b);
     return b;
 }
 
 
 
-dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
+void Chebyshev::coeff_to_nodal(const dev_dvec &a, dev_dvec &b) {
 
     catrev(a,X2);
 
@@ -98,46 +99,38 @@ dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
 
     X2 = fft(X2) / 2;
 
-    dev_dvec b(ctx, N);
-
     b = slice[vex::range(0,N)](X2);
-
-    return b;
 }
 
 
 
 // Compute Chebyshev expansion coefficient from grid values
-dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
+void Chebyshev::nodal_to_coeff(const dev_dvec &b, dev_dvec &a){
 
     catrev(b, X2);
 
     X2 = ifft(X2) * 2;
-
-    dev_dvec a(ctx, N);
 
     a = slice[vex::range(0,N)](X2);
 
     a[0]   = 0.5*a[0];
     a[N-1] = 0.5*a[N-1];
 
-    return a;
 }
 
 host_dvec Chebyshev::nodal_to_coeff(const host_dvec &b) {
 
     dev_dvec B(ctx, b);
+    dev_dvec A(ctx,N);
     host_dvec a(N);
-    auto A = nodal_to_coeff(B);
+    nodal_to_coeff(B,A);
     vex::copy(A,a);
     return a;
 }
 
 
 // Differentiate a function on the grid
-dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
-
-    dev_dvec v(ctx, N);
+void Chebyshev::nodal_diff(const dev_dvec &u, dev_dvec &v){
 
     catrev(u,X2);
 
@@ -162,17 +155,16 @@ dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
     slice[vex::range(1,N-1)](v) = slice[vex::range(1,N-1)](X2) * wi;
 
     v[N-1] = sum(wN*u);
-
-    return v;
 }
 
 host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
 
     dev_dvec U(ctx, u);
+    dev_dvec V(ctx, N);
 
     host_dvec v(N);
 
-    auto V = nodal_diff(U);
+    nodal_diff(U,V);
 
     vex::copy(V,v);
     return v;
@@ -193,8 +185,6 @@ int main(int argc, char* argv[]) {
 
         host_dvec a(N,0);
         a[k] = 1;
-
-        dev_dvec A(a);
 
         auto b = cheb.coeff_to_nodal(a);
         auto bx = cheb.nodal_diff(b);
