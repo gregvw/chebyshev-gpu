@@ -25,7 +25,6 @@ Chebyshev::Chebyshev(int n)
       sum(ctx),
       slice(vex::extents[M]),
       X2(ctx, M),
-      kkrev(ctx, M),
       w0(ctx, N),
       wi(ctx, N-2),
       wN(ctx, N)
@@ -35,10 +34,6 @@ Chebyshev::Chebyshev(int n)
 
       // 0,1,...N-1
       k = vex::element_index();
-
-      // 0,1,...,N-1,-(N-1),-(N-2),...,-1
-      slice[vex::range(0,N)](kkrev) = k;
-      slice[vex::range(N, M)](kkrev) = -vex::permutation( N - 2 - vex::element_index() )(kkrev);
 
       // 1,2,...,N-2
       copy_subvector(k,ki,1,N-1);
@@ -153,8 +148,14 @@ dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
 
     catrev(u,X2);
 
+    // 0,1,...,N-1,-(N-1),-(N-2),...,-1
+    VEX_FUNCTION(double, kkrev, (ptrdiff_t, N)(ptrdiff_t, i),
+            if (i < N) return i;
+            return -2 * N + i + 1;
+            );
+
     X2 = fft(X2);
-    X2 = X2*kkrev;
+    X2 = X2*kkrev(N, vex::element_index());
     X2[N-1] = 0;
 
     // Extract imaginary part of vector

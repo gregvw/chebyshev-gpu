@@ -44,8 +44,6 @@ class Chebyshev {
 
         dev_dvec X2;
 
-        dev_dvec kkrev;
-
         dev_dvec w0;
         dev_dvec wi;
         dev_dvec wN;
