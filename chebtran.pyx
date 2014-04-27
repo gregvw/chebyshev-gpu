@@ -10,23 +10,24 @@ from libcpp.vector cimport vector
 
 
 cdef extern from "chebtran_cl.hpp":
-    cdef cppclass ChebyshevTransform:
-        ChebyshevTransform(int)
+    cdef cppclass Chebyshev:
+        Chebyshev(int)
         
         string get_device_name()
 
         vector[double] coeff_to_nodal(const vector[double] &a)
         vector[double] nodal_to_coeff(const vector[double] &b)
+        vector[double] nodal_diff(const vector[double] &u)
 
 
 
 cdef class ChebTran:
-    cdef ChebyshevTransform *thisptr
+    cdef Chebyshev *thisptr
     
 #    def get_device_name
 
     def __init__(self,int n):
-        self.thisptr = new ChebyshevTransform(n)
+        self.thisptr = new Chebyshev(n)
 
     def __dealloc__(self):
         del self.thisptr
@@ -39,6 +40,9 @@ cdef class ChebTran:
 
     def nodal_to_coeff(self,const vector[double] &b):
         return np.array(self.thisptr.nodal_to_coeff(b))
+
+    def nodal_diff(self,const vector[double] &u):
+        return np.array(self.thisptr.nodal_diff(u))
 
         
 

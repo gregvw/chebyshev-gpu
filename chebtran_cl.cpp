@@ -1,9 +1,19 @@
-// g++ -std=c++11 -DSTANDALONE_TEST -L/opt/local/lib chebtran_cl.cpp -lOpenCL -lboost_system
+
+// g++ -std=c++11 -DSTANDALONE_TEST -L/opt/local/lib cheb_cl.cpp -lOpenCL -lboost_system
 //#include <cstdlib>
 #include "chebtran_cl.hpp"
 
+// Print elements of vector to stdout
+template<class T>
+void printvector(const T &v){
+    for(int i=0;i<v.size();++i) {
+        std::cout << v[i] << std::endl;
+    }
+    std::cout << std::endl;
+}
 
-ChebyshevTransform::ChebyshevTransform(int n)
+
+Chebyshev::Chebyshev(int n)
     : N(n), M(2 * N - 2),
       ctx(
             vex::Filter::Type(CL_DEVICE_TYPE_GPU) &&
@@ -11,12 +21,47 @@ ChebyshevTransform::ChebyshevTransform(int n)
             vex::Filter::Count(1)
          ),
       fft(ctx, M), ifft(ctx, M, vex::fft::inverse),
-      X2(ctx, M)
-{ }
+      cplx_ifft(ctx, M, vex::fft::inverse),
+      kkrev(ctx, M),
+      X2(ctx, M),
+      w0(ctx, N),
+      wi(ctx, N-2),
+      wN(ctx, N),
+      sum(ctx)
+{ 
+      slice.reset(new vex::slicer<1>(vex::extents[M]));
+
+      dev_dvec k(N);
+      dev_dvec ki(N-2);
+
+      // 0,1,...N-1 
+      k = vex::element_index();
+
+      // 0,1,...,N-1,-(N-1),-(N-2),...,-1
+      (*slice)[vex::range(0,N)](kkrev) = k;
+      (*slice)[vex::range(N, M)](kkrev) = -vex::permutation( N - 2 - vex::element_index() )(kkrev);
+
+      // 1,2,...,N-2
+      copy_subvector(k,ki,1,N-1);   
+
+      dev_dvec k2(2*k*k);
+ 
+      // 2,8,18,...,2*(N-2)^2,(N-1)^2
+      k2[N-1] = 0.5*k2[N-1]; 
+
+      w0 = coeff_to_nodal(k2);
+      w0 = w0/(N-1);
+      w0[0] = 0.5*w0[0];
+      w0[N-1] = 0.5*w0[N-1];
+      wN = -vex::permutation(N-1-vex::element_index())(w0);
+      wi = 1/(vex::sin(pi*ki/(N-1)));
+ 
+}
 
 
 
-std::string ChebyshevTransform::get_device_name() {
+
+std::string Chebyshev::get_device_name() {
 
     std::ostringstream os;
 
@@ -29,51 +74,118 @@ std::string ChebyshevTransform::get_device_name() {
     return devName;
 }
 
-// Concatenate input vector with its reversed self,
-// copy the result to compute device
-void ChebyshevTransform::catrev(const dvec &a, vex::vector<double> &A2) {
+
+void Chebyshev::copy_subvector(const dev_dvec &a, dev_dvec &b, int start, int stop) {
+    b = (*slice)[vex::range(start,stop)](a);
+}
+ 
+
+void Chebyshev::catrev(const dev_dvec &a, dev_dvec &A2) {
+
     // First half of A2 holds a:
-    vex::copy(a.begin(), a.end(), A2.begin());
+    (*slice)[vex::range(0,N)](A2) = a;
 
     // Second half of A2 holds reversed copy of a (with endpoints removed):
-    vex::slicer<1> slice(vex::extents[M]);
-    slice[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
+    (*slice)[vex::range(N, M)](A2) = vex::permutation( N - 2 - vex::element_index() )(A2);
 }
 
-// Evaluate real-valued Chebyshev expansions on the grid
-dvec ChebyshevTransform::coeff_to_nodal(const dvec &a) {
 
-    catrev(a, X2);
+
+host_dvec Chebyshev::coeff_to_nodal(const host_dvec &a) {
+
+    dev_dvec A(a);
+    host_dvec b(N);
+    auto B = coeff_to_nodal(A);
+    vex::copy(B,b);
+    return b;
+}
+
+
+
+dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
+
+    catrev(a,X2);
 
     X2[0]   = 2 * a[0];
     X2[N-1] = 2 * a[N-1];
 
     X2 = fft(X2) / 2;
+       
+    dev_dvec b(N);
 
-    dvec b(N);
-
-    vex::copy(X2.begin(), X2.begin() + N, b.begin());
-
+    copy_subvector(X2,b,0,N);
+ 
     return b;
 }
 
 
-// Compute Chebyshev expansion coefficient from grid values
-dvec ChebyshevTransform::nodal_to_coeff(const dvec &b){
 
+// Compute Chebyshev expansion coefficient from grid values
+dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
+    
     catrev(b, X2);
 
     X2 = ifft(X2) * 2;
 
-    dvec a(N);
+    dev_dvec a(N);
 
-    vex::copy(X2.begin(), X2.begin() + N, a.begin());
+    copy_subvector(X2,a,0,N); 
 
-    a[0]   *= 0.5;
-    a[N-1] *= 0.5;
+    a[0]   = 0.5*a[0];
+    a[N-1] = 0.5*a[N-1];
 
     return a;
 }
+
+host_dvec Chebyshev::nodal_to_coeff(const host_dvec &b) {
+
+    dev_dvec B(b);
+    host_dvec a(N);
+    auto A = nodal_to_coeff(B);
+    vex::copy(A,a);
+    return a;
+}
+
+
+// Differentiate a function on the grid
+dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
+
+    dev_dvec v(N);
+
+    catrev(u,X2);
+
+    X2 = fft(X2);
+    X2 = X2*kkrev;
+    X2[N-1] = 0;
+
+    // Extract imaginary part of vector
+    VEX_FUNCTION(double, imag, (cl_double2, c),
+            return c.y;
+            ); 
+
+    X2 = imag(cplx_ifft(X2)); 
+
+    v[0] = sum(u*w0);
+
+    (*slice)[vex::range(1,N-1)](v) = (*slice)[vex::range(1,N-1)](X2) * wi;
+
+    v[N-1] = sum(wN*u);
+
+    return v;
+}
+
+host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
+
+    dev_dvec U(u);
+
+    host_dvec v(N);
+
+    auto V = nodal_diff(U);
+
+    vex::copy(V,v);
+    return v;
+}
+
 
 
 
@@ -84,18 +196,20 @@ int main(int argc, char* argv[]) {
     int k = argc > 2 ? atoi(argv[2]) : 0;
 
     try {
-        ChebyshevTransform chebtran(N);
-        std::cout << chebtran.get_device_name() << std::endl;
+        Chebyshev cheb(N);
+        std::cout << cheb.get_device_name() << std::endl;
 
-        dvec a(N,0);
+        host_dvec a(N,0);
         a[k] = 1;
 
-        auto b = chebtran.coeff_to_nodal(a);
-        auto c = chebtran.nodal_to_coeff(b);
+        dev_dvec A(a);
 
-        for(int i=0;i<c.size();++i) {
-            std::cout << c[i] << std::endl;
-        }
+        auto b = cheb.coeff_to_nodal(a);
+        auto bx = cheb.nodal_diff(b);
+        auto c = cheb.nodal_to_coeff(bx);
+
+        printvector(c);
+
     } catch (const cl::Error &e) {
         std::cerr << "OpenCL error: " << e << std::endl;
     } catch (const std::exception &e) {
@@ -104,4 +218,3 @@ int main(int argc, char* argv[]) {
 
 }
 #endif
-

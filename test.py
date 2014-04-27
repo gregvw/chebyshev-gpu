@@ -26,7 +26,18 @@ if __name__ == '__main__':
     Dfhat[:-1] = chebder(fhat)
     Df = ct.coeff_to_nodal(Dfhat)
 
-    plt.plot(x,Df,lw=2)
+    fx = ct.nodal_diff(f)
+
+    fig = plt.figure(1,(12,6))
+    ax1 = fig.add_subplot(121)
+    ax1.plot(x,Df,lw=2)
+    ax1.set_title('Modal differentiation')
+
+    ax2 = fig.add_subplot(122)
+    ax2.plot(x,fx,lw=2)
+    ax2.set_title('Nodal differentiation')
+   
+
     plt.show()
     
  
