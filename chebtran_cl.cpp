@@ -29,27 +29,23 @@ Chebyshev::Chebyshev(int n)
       wi(ctx, N-2),
       wN(ctx, N)
 {
-      dev_dvec k(N);
-      dev_dvec ki(N-2);
+    dev_dvec k2(ctx, N);
 
-      // 0,1,...N-1
-      k = vex::element_index();
+    auto i = vex::tag<1>(vex::element_index());
 
-      // 1,2,...,N-2
-      copy_subvector(k,ki,1,N-1);
+    k2 = 2 * i * i;
 
-      dev_dvec k2(2*k*k);
+    // 2,8,18,...,2*(N-2)^2,(N-1)^2
+    k2[N - 1] = (N - 1) * (N - 1);
 
-      // 2,8,18,...,2*(N-2)^2,(N-1)^2
-      k2[N-1] = 0.5*k2[N-1];
+    w0 = coeff_to_nodal(k2);
+    w0 = w0 / (N - 1);
 
-      w0 = coeff_to_nodal(k2);
-      w0 = w0/(N-1);
-      w0[0] = 0.5*w0[0];
-      w0[N-1] = 0.5*w0[N-1];
-      wN = -vex::permutation(N-1-vex::element_index())(w0);
-      wi = 1/(vex::sin(pi*ki/(N-1)));
+    w0[0]     = 0.5 * w0[0];
+    w0[N - 1] = 0.5 * w0[N - 1];
 
+    wN = -vex::permutation(N - 1 - i)(w0);
+    wi = 1 / ( sin(vex::constants::pi() * (i + 1) / (N - 1)) );
 }
 
 

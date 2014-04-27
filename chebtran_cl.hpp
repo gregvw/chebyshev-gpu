@@ -2,7 +2,6 @@
 #include <vector>
 #include <memory>
 #include <string>
-#include <boost/math/constants/constants.hpp>
 
 // Throw if there are no compute devices.
 #define VEXCL_THROW_ON_EMPTY_CONTEXT
@@ -10,8 +9,6 @@
 
 typedef vex::vector<double> dev_dvec;
 typedef std::vector<double> host_dvec;
-
-const double pi = boost::math::constants::pi<double>();
 
 class Chebyshev {
 
