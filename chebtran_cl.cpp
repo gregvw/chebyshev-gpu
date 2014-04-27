@@ -65,9 +65,6 @@ std::string Chebyshev::get_device_name() {
 }
 
 
-void Chebyshev::copy_subvector(const dev_dvec &a, dev_dvec &b, int start, int stop) {
-    b = slice[vex::range(start,stop)](a);
-}
 
 
 void Chebyshev::catrev(const dev_dvec &a, dev_dvec &A2) {
@@ -103,7 +100,7 @@ dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
 
     dev_dvec b(ctx, N);
 
-    copy_subvector(X2,b,0,N);
+    b = slice[vex::range(0,N)](X2);
 
     return b;
 }
@@ -119,7 +116,7 @@ dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
 
     dev_dvec a(ctx, N);
 
-    copy_subvector(X2,a,0,N);
+    a = slice[vex::range(0,N)](X2);
 
     a[0]   = 0.5*a[0];
     a[N-1] = 0.5*a[N-1];

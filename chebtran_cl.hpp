@@ -47,8 +47,4 @@ class Chebyshev {
 
         void catrev(const dev_dvec &a, dev_dvec &X2);
 
-        // Copy the first N elements of a to b
-        void copy_subvector(const dev_dvec &a, dev_dvec &b, int start, int stop);
-
-
 };
