@@ -150,8 +150,7 @@ dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
             return -2 * N + i + 1;
             );
 
-    X2 = fft(X2);
-    X2 = X2*kkrev(N, vex::element_index());
+    X2 = fft(X2) * kkrev(N, vex::element_index());
     X2[N-1] = 0;
 
     // Extract imaginary part of vector
