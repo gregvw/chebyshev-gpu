@@ -22,13 +22,13 @@ Chebyshev::Chebyshev(int n)
          ),
       fft(ctx, M), ifft(ctx, M, vex::fft::inverse),
       cplx_ifft(ctx, M, vex::fft::inverse),
-      kkrev(ctx, M),
+      sum(ctx),
+      slice(vex::extents[M]),
       X2(ctx, M),
+      kkrev(ctx, M),
       w0(ctx, N),
       wi(ctx, N-2),
-      wN(ctx, N),
-      sum(ctx),
-      slice(vex::extents[M])
+      wN(ctx, N)
 {
       dev_dvec k(N);
       dev_dvec ki(N-2);

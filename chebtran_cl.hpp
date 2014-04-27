@@ -36,11 +36,11 @@ class Chebyshev {
 
         vex::Context ctx;
 
-        vex::slicer<1> slice;
-        vex::Reductor<double,vex::SUM> sum;
         vex::FFT<double, double> fft;
         vex::FFT<double, double> ifft;
         vex::FFT<cl_double2, cl_double2> cplx_ifft;
+        vex::Reductor<double,vex::SUM> sum;
+        vex::slicer<1> slice;
 
         dev_dvec X2;
 
