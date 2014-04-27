@@ -83,7 +83,7 @@ void Chebyshev::catrev(const dev_dvec &a, dev_dvec &A2) {
 
 host_dvec Chebyshev::coeff_to_nodal(const host_dvec &a) {
 
-    dev_dvec A(a);
+    dev_dvec A(ctx, a);
     host_dvec b(N);
     auto B = coeff_to_nodal(A);
     vex::copy(B,b);
@@ -101,7 +101,7 @@ dev_dvec Chebyshev::coeff_to_nodal(const dev_dvec &a) {
 
     X2 = fft(X2) / 2;
 
-    dev_dvec b(N);
+    dev_dvec b(ctx, N);
 
     copy_subvector(X2,b,0,N);
 
@@ -117,7 +117,7 @@ dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
 
     X2 = ifft(X2) * 2;
 
-    dev_dvec a(N);
+    dev_dvec a(ctx, N);
 
     copy_subvector(X2,a,0,N);
 
@@ -129,7 +129,7 @@ dev_dvec Chebyshev::nodal_to_coeff(const dev_dvec &b){
 
 host_dvec Chebyshev::nodal_to_coeff(const host_dvec &b) {
 
-    dev_dvec B(b);
+    dev_dvec B(ctx, b);
     host_dvec a(N);
     auto A = nodal_to_coeff(B);
     vex::copy(A,a);
@@ -140,7 +140,7 @@ host_dvec Chebyshev::nodal_to_coeff(const host_dvec &b) {
 // Differentiate a function on the grid
 dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
 
-    dev_dvec v(N);
+    dev_dvec v(ctx, N);
 
     catrev(u,X2);
 
@@ -172,7 +172,7 @@ dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
 
 host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
 
-    dev_dvec U(u);
+    dev_dvec U(ctx, u);
 
     host_dvec v(N);
 
