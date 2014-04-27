@@ -134,7 +134,7 @@ void Chebyshev::nodal_diff(const dev_dvec &u, dev_dvec &v){
 
     catrev(u,X2);
 
-    // 0,1,...,N-1,-(N-1),-(N-2),...,-1
+    // 0,1,...,N-1,-(N-2),...,-1
     VEX_FUNCTION(double, kkrev, (ptrdiff_t, N)(ptrdiff_t, i),
             if (i < N) return i;
             return -2 * N + i + 2;
