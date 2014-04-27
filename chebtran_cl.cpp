@@ -147,7 +147,7 @@ dev_dvec Chebyshev::nodal_diff(const dev_dvec &u){
     // 0,1,...,N-1,-(N-1),-(N-2),...,-1
     VEX_FUNCTION(double, kkrev, (ptrdiff_t, N)(ptrdiff_t, i),
             if (i < N) return i;
-            return -2 * N + i + 1;
+            return -2 * N + i + 2;
             );
 
     X2 = fft(X2) * kkrev(N, vex::element_index());
@@ -203,7 +203,8 @@ int main(int argc, char* argv[]) {
         auto bx = cheb.nodal_diff(b);
         auto c = cheb.nodal_to_coeff(bx);
 
-        printvector(c);
+        printvector(b);
+        printvector(bx);
 
     } catch (const cl::Error &e) {
         std::cerr << "OpenCL error: " << e << std::endl;
