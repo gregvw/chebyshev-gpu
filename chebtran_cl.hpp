@@ -22,7 +22,7 @@ class Chebyshev {
 
         dev_dvec coeff_to_nodal(const dev_dvec &a);
         host_dvec coeff_to_nodal(const host_dvec &a);
-        
+
         dev_dvec nodal_to_coeff(const dev_dvec &b);
         host_dvec nodal_to_coeff(const host_dvec &b);
 
@@ -36,16 +36,16 @@ class Chebyshev {
 
         vex::Context ctx;
 
-        std::unique_ptr<vex::slicer<1>> slice;
+        vex::slicer<1> slice;
         vex::Reductor<double,vex::SUM> sum;
         vex::FFT<double, double> fft;
         vex::FFT<double, double> ifft;
         vex::FFT<cl_double2, cl_double2> cplx_ifft;
 
         dev_dvec X2;
- 
-        dev_dvec kkrev; 
-        
+
+        dev_dvec kkrev;
+
         dev_dvec w0;
         dev_dvec wi;
         dev_dvec wN;
