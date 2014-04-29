@@ -26,6 +26,7 @@ class Chebyshev {
         void nodal_diff(const dev_dvec &u, dev_dvec &v);
         host_dvec nodal_diff(const host_dvec &u);
 
+        void coeff_int(const dev_dvec &v, dev_dvec &u);
 
     private:
         int N;

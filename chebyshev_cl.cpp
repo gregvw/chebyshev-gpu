@@ -171,6 +171,23 @@ host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
 }
 
 
+void Chebyshev::coeff_int(const dev_dvec &v, dev_dvec &u) {
+    u[0] = 0;
+    slice[vex::range(1,N)](u) = slice[vex::range(0,N-1)](v);
+    slice[vex::range(1,N-1)](u) = slice[vex::range(1,N-1)](u) -
+                                  slice[vex::range(2,N)](v);
+    u[1] = u[1] + 0.5*v[2];
+   
+    VEX_FUNCTION(double, frac, (ptrdiff_t, i),
+            if (i < 2) return i;
+            return 1.0/(2*i);
+            );
+
+    u = u*frac(vex::element_index());
+
+
+}
+
 
 
 #ifdef STANDALONE_TEST
@@ -186,12 +203,18 @@ int main(int argc, char* argv[]) {
         host_dvec a(N,0);
         a[k] = 1;
 
-        auto b = cheb.coeff_to_nodal(a);
-        auto bx = cheb.nodal_diff(b);
-        auto c = cheb.nodal_to_coeff(bx);
+//        auto b = cheb.coeff_to_nodal(a);
+//        auto bx = cheb.nodal_diff(b);
+//        auto c = cheb.nodal_to_coeff(bx);
 
-        printvector(b);
-        printvector(bx);
+//        printvector(b);
+//        printvector(bx);
+        dev_dvec A(a);
+        dev_dvec B(N);
+        
+        cheb.coeff_int(A,B);
+        printvector(B);
+
 
     } catch (const cl::Error &e) {
         std::cerr << "OpenCL error: " << e << std::endl;
