@@ -172,19 +172,19 @@ host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
 
 
 void Chebyshev::coeff_int(const dev_dvec &v, dev_dvec &u) {
-    u[0] = 0;
-    slice[vex::range(1,N)](u) = slice[vex::range(0,N-1)](v);
-    slice[vex::range(1,N-1)](u) = slice[vex::range(1,N-1)](u) -
-                                  slice[vex::range(2,N)](v);
-    u[1] = u[1] + 0.5*v[2];
-   
-    VEX_FUNCTION(double, frac, (ptrdiff_t, i),
-            if (i < 2) return i;
-            return 1.0/(2*i);
+    VEX_FUNCTION(double, scaled_diff, (size_t, N)(size_t, i)(const double*, v),
+            if (i == 0) {
+                return 0;
+            } else if (i == 1) {
+                return v[0] - 0.5 * v[2];
+            } else if (i + 1 >= N){
+                return 0.5 * v[i - 1] / i;
+            } else {
+                return 0.5 * (v[i - 1] - v[i + 1]) / i;
+            }
             );
 
-    u = u*frac(vex::element_index());
-
+    u = scaled_diff(N, vex::element_index(), vex::raw_pointer(v));
 
 }
 
@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
 //        printvector(bx);
         dev_dvec A(a);
         dev_dvec B(N);
-        
+
         cheb.coeff_int(A,B);
         printvector(B);
 
