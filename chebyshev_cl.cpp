@@ -157,6 +157,7 @@ void Chebyshev::nodal_diff(const dev_dvec &u, dev_dvec &v){
     v[N-1] = sum(wN*u);
 }
 
+
 host_dvec Chebyshev::nodal_diff(const host_dvec &u) {
 
     dev_dvec U(ctx, u);
@@ -189,6 +190,35 @@ void Chebyshev::coeff_int(const dev_dvec &v, dev_dvec &u) {
 }
 
 
+void Chebyshev::coeff_diff(const dev_dvec &u, dev_dvec &v) {
+    VEX_FUNCTION(double, kmult, (size_t, N)(size_t, k)(const double*, u),
+        return 2*k*u[k];
+        );
+
+    dev_dvec w(N);
+    w = kmult(N, vex::element_index(), vex::raw_pointer(u));
+  
+    v[N-1] = 0;     
+    v[N-2] = w[N-1];
+
+    int j = 0;
+
+    for(int l = 0; l < N-2 ; l += 2) {
+        j = N-l-3;
+        v[j] = v[j+2] + w[j+1];    
+    }
+
+    for(int l = 1; l < N-2 ; l += 2) {
+        j = N-l-3;
+        v[j] = v[j+2] + w[j+1];    
+    }
+
+    v[0] = 0.5*(v[2]+w[1]);
+
+}
+
+
+
 
 #ifdef STANDALONE_TEST
 int main(int argc, char* argv[]) {
@@ -212,8 +242,9 @@ int main(int argc, char* argv[]) {
         dev_dvec A(a);
         dev_dvec B(N);
 
-        cheb.coeff_int(A,B);
-        printvector(B);
+//        cheb.coeff_int(A,B);
+      cheb.coeff_diff(A,B);  
+      printvector(B);
 
 
     } catch (const cl::Error &e) {

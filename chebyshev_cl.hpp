@@ -28,6 +28,8 @@ class Chebyshev {
 
         void coeff_int(const dev_dvec &v, dev_dvec &u);
 
+        void coeff_diff(const dev_dvec &u, dev_dvec &v);
+         
     private:
         int N;
         int M;
